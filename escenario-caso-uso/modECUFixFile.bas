@@ -43,23 +43,33 @@ Sub main()
 		
 		obtainTitle title, originalDoc ' Obtener título del archivo original
 		
-		obtainTableRowsCount originalDoc ' Obtener cantidad de filas de tabla original
+		obtainTableRowsCount tableRowsCount, originalDoc ' Obtener cantidad de filas de tabla original
 		
 		obtainRow "Secuencia normal", normalSequenceRow, originalDoc ' Obtener encabezado secuencia normal tabla original
+		
+		If normalSequenceRow <> 7 Then
+			MsgBox "Secuencia normal en fila incorrecta. El macro se detendrá."
+			GoTo CleanUp
+		End If
 		
 		obtainRow "Excepción", exceptionRow, originalDoc ' Obtener encabezado excepción tabla original
 		
 		normalSequenceRowsCount = exceptionRow - normalSequenceRow - 1 ' Calcular cantidad filas secuencia normal tabla original
 		
-		editRows normalSequenceRowsCount, templateNormalSequenceRow + 2, templateExceptionRow, templateDoc ' Edita filas secuencia normal plantilla
+		editRows normalSequenceRowsCount, templateNormalSequenceRow + (templateBaseRows - 1), templateExceptionRow, templateDoc ' Edita filas secuencia normal plantilla
 		
 		obtainRow "Postcondición:", postconditionRow, originalDoc ' Obtener postcondición tabla original
+		
+		If postconditionRow <> tableRowsCount - 2 Then
+			MsgBox "Excepción en fila incorrecta. El macro se detendrá."
+			GoTo CleanUp
+		End If
 		
 		exceptionRowsCount = postconditionRow - exceptionRow - 1 ' Calcular cantidad filas excepción tabla original
 		
 		offset = normalSequenceRowsCount - templateBaseRows ' Calcular ajuste de filas
 		
-		editRows exceptionRowsCount, templateExceptionRow + 2 + offset, templatePostconditionRow + offset, templateDoc ' Edita filas excepción plantilla 
+		editRows exceptionRowsCount, templateExceptionRow + (templateBaseRows - 1) + offset, templatePostconditionRow + offset, templateDoc ' Edita filas excepción plantilla 
 		
 		editTitle templateDoc, title ' Editar título plantilla
 		
@@ -88,15 +98,28 @@ Sub main()
 	Exit Sub
 	
 	CleanUp:
-	Application.ScreenUpdating = True
-	If Err.Number <> 0 Then
-		Dim errMsg As String
-		errMsg = "Error: " & Err.Description
-		On Error Resume Next  ' por si filesFolder(i) falla
-		errMsg = "Error en archivo " & filesFolder(i) & ":" & vbNewLine & Err.Description
-		On Error GoTo 0
-		MsgBox errMsg
-	End If
+		Application.ScreenUpdating = True
+
+		' Cerrar templateDoc si sigue abierto
+		If Not templateDoc Is Nothing Then
+			templateDoc.Close SaveChanges:=False
+			Set templateDoc = Nothing
+		End If
+
+		' Cerrar originalDoc si sigue abierto
+		If Not originalDoc Is Nothing Then
+			originalDoc.Close SaveChanges:=False
+			Set originalDoc = Nothing
+		End If
+
+		If Err.Number <> 0 Then
+			Dim errMsg As String
+			errMsg = "Error: " & Err.Description
+			On Error Resume Next
+			errMsg = "Error en archivo " & filesFolder(i) & ":" & vbNewLine & Err.Description
+			On Error GoTo 0
+			MsgBox errMsg
+		End If
 	
 End Sub
 
@@ -114,7 +137,7 @@ Sub obtainFile(ByRef pPathFile As String)
 			pPathFile = .SelectedItems(1)
 		Else
 			MsgBox "No se seleccionó ningún archivo. El macro se detendrá."
-			End  ' Detiene ejecución limpiamente
+			End
 		End If
 	End With
 	
@@ -137,7 +160,7 @@ Sub obtainFolder(ByRef pPathFolder As String)
 			pPathFolder = .SelectedItems(1)
 		Else
 			MsgBox "No se seleccionó ninguna carpeta. El macro se detendrá."
-			End  ' Detiene ejecución limpiamente
+			End
 		End If
 	End With
 
@@ -169,12 +192,14 @@ End Sub
 
 Sub obtainTitle(ByRef pTitle As String, ByVal pDoc As Document)
 	pTitle = pDoc.Paragraphs(1).Range.Text
+	
 	Debug.Print "Título: " & pTitle
 End Sub
 
-Sub obtainTableRowsCount(ByVal pDoc As Document)
-	tableRowsCount = pDoc.Tables(1).Rows.Count
-	Debug.Print "Cantidad de filas: " & tableRowsCount
+Sub obtainTableRowsCount(ByRef pTableRowsCount As Integer, ByVal pDoc As Document)
+	pTableRowsCount = pDoc.Tables(1).Rows.Count
+	
+	Debug.Print "Cantidad de filas: " & pTableRowsCount
 End Sub
 
 Sub obtainRow(ByVal pSearchedWord As String, ByRef pTableRow As Integer, ByVal pDoc As Document)
@@ -190,8 +215,9 @@ Sub obtainRow(ByVal pSearchedWord As String, ByRef pTableRow As Integer, ByVal p
 			Exit Sub
 		End If
 	Next j
-
+	
 	MsgBox "Palabra no encontrada: " & pSearchedWord
+	Err.Raise vbObjectError + 1 
 End Sub
 
 Sub editRows(ByVal pRowsCount As Integer, ByVal pTemplateInsertRow As Integer, ByVal pTemplateDeleteRow As Integer, ByRef pTemplateDoc As Document)
@@ -213,9 +239,10 @@ Sub editRows(ByVal pRowsCount As Integer, ByVal pTemplateInsertRow As Integer, B
 
 		Case 0
 			MsgBox "No hay filas."
+			Err.Raise vbObjectError + 1
 
 		Case Else
-			MsgBox "No hay que hacer cambios."	
+			MsgBox "No hay que hacer cambios."
 	End Select
 End Sub
 
